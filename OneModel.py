@@ -32,13 +32,22 @@ class OneModel(torch.nn.Module):
         elif self.region == "3utr":
             model_dir = "/mount/data/models/mrna_3utr_model"
         elif self.region == "cds":
-            model_dir = "/mount/data/models/CodonBERT"
+            model_dir = "codonbert"
         else:
             print("wrong region!!", self.region)
             exit(0)
         
+        # Load model and resize token embeddings to match our tokenizer
         self.model = BertForSequenceClassification.from_pretrained(model_dir, num_labels=num_labels, output_hidden_states=output_hidden_states)
-#         self.model.gradient_checkpointing_enable(gradient_checkpointing_kwargs={"use_reentrant": False})
+
+        # Resize embeddings to match our custom tokenizer
+        if self.model.config.vocab_size != len(self.tokenizer):
+            print(f"Resizing embeddings: model vocab {self.model.config.vocab_size} -> tokenizer vocab {len(self.tokenizer)}")
+            self.model.resize_token_embeddings(len(self.tokenizer))
+
+        # The altenrative 
+
+        # self.model.gradient_checkpointing_enable(gradient_checkpointing_kwargs={"use_reentrant": False})
 
         ########### lora
         if lorar > 0:
@@ -53,8 +62,8 @@ class OneModel(torch.nn.Module):
 #             self.model.gradient_checkpointing_enable()
 #             self.model.enable_input_require_grads()
     
-    def build_tokenizer(self):
-        lst_ele = list('AUGCN')
+    def build_tokenizer(self):                                      # FIXED (4^3 = 64, 5^3 =  125)
+        lst_ele = list('AUGC')                                      # it was 'AUGCN' but that messes with the model tokeniser
         lst_voc = ['[PAD]', '[UNK]', '[CLS]', '[SEP]', '[MASK]']
         if self.region == "cds":
             for a1 in lst_ele:
@@ -83,6 +92,6 @@ class OneModel(torch.nn.Module):
 
     def encode_string(self, data):
         return self.tokenizer(data[self.region], 
-                              truncation=True,  # do_not_truncate
+                              truncation=True,  # do not truncate
                               padding="max_length",
                               max_length=self.max_length)
